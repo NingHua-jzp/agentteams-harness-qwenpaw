@@ -40,6 +40,10 @@ SESSION_FILE_PROMPT_POLICY = """Do not read, list, grep, glob, summarize, copy, 
 Session files are runtime-private state and may contain private conversation history.
 This rule applies to all channels, users, and sessions, not only DingTalk."""
 SESSION_FILE_PROMPT_POLICY_MARKER = "Session files are runtime-private state"
+PRIVATE_CLEANUP_PROMPT_POLICY = """Use $TMPDIR for your private temporary build and rehearsal files.
+You can clean files beneath your workspace or $TMPDIR without human approval.
+Run cleanup as a standalone rm command with explicit paths; do not combine it with other shell commands.
+Deleting the workspace root, shared directories, other tasks, or files outside your private directories requires approval."""
 
 
 def _duration_ms(started_at: float) -> int:
@@ -572,6 +576,10 @@ class Worker:
         os.environ["TEAMHARNESS_RUNTIME_CONFIG"] = str(self.config.runtime_config_path)
         os.environ.setdefault("QWENPAW_SECRET_DIR", f"{self.config.qwenpaw_working_dir}.secret")
         os.environ.setdefault("QWENPAW_RUNNING_IN_CONTAINER", "true")
+        # Container-local scratch is private to this runtime, never team shared.
+        scratch = tempfile.mkdtemp(prefix=f"agentteams-{self.config.worker_name}-", dir="/tmp")
+        os.environ["AGENTTEAMS_PRIVATE_TMPDIR"] = scratch
+        os.environ["TMPDIR"] = scratch
 
     def _link_workspace_shared(self) -> None:
         shared_dir = self._workspace_shared_dir or self.config.shared_dir
@@ -692,14 +700,13 @@ class Worker:
         for file_name in ("AGENTS.md", "SOUL.md"):
             prompt_file = self.config.default_workspace_dir / file_name
             existing = prompt_file.read_text(encoding="utf-8") if prompt_file.exists() else ""
-            if SESSION_FILE_PROMPT_POLICY_MARKER in existing:
-                continue
-            separator = "\n" if existing and not existing.endswith("\n") else ""
-            prefix = "\n" if existing.strip() else ""
-            prompt_file.write_text(
-                f"{existing}{separator}{prefix}{SESSION_FILE_PROMPT_POLICY}\n",
-                encoding="utf-8",
-            )
+            for marker, policy in (
+                (SESSION_FILE_PROMPT_POLICY_MARKER, SESSION_FILE_PROMPT_POLICY),
+                (PRIVATE_CLEANUP_PROMPT_POLICY.splitlines()[0], PRIVATE_CLEANUP_PROMPT_POLICY),
+            ):
+                if marker not in existing:
+                    existing = f"{existing.rstrip()}\n\n{policy}\n".lstrip("\n")
+            prompt_file.write_text(existing, encoding="utf-8")
 
     def _apply_runtime_adapter(self, force: bool = False) -> None:
         self._prepare_default_plugins()

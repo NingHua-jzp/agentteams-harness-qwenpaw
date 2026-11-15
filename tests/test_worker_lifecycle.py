@@ -898,6 +898,7 @@ def test_builtin_plugin_mcp_is_reconciled_through_api(
     monkeypatch.setenv("AGENTTEAMS_OTEL_ENABLED", "true")
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
     monkeypatch.setenv("PYTHONPATH", "/opt/agentteams/scripts/lib/telemetry")
+    monkeypatch.setenv("TEAMHARNESS_COORDINATION_URL", "http://controller:8090/api/v1/coordination")
     worker._prepare_env()
     created = {}
     policies = {}
@@ -952,6 +953,7 @@ def test_builtin_plugin_mcp_is_reconciled_through_api(
     assert created["teamharness"]["env"]["AGENTTEAMS_OTEL_ENABLED"] == "true"
     assert created["teamharness"]["env"]["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector:4318"
     assert created["teamharness"]["env"]["PYTHONPATH"] == "/opt/agentteams/scripts/lib/telemetry"
+    assert created["teamharness"]["env"]["TEAMHARNESS_COORDINATION_URL"] == "http://controller:8090/api/v1/coordination"
 
 
 @pytest.mark.parametrize("token_source", ["file", "env"])

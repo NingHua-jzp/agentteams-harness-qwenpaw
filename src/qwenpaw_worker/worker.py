@@ -1098,6 +1098,7 @@ class Worker:
                     name: value
                     for name in (
                         "TEAMHARNESS_RUNTIME_CONFIG",
+                        "TEAMHARNESS_COORDINATION_URL",
                         "TEAMHARNESS_SHARED_DIR",
                         "AGENTTEAMS_MATRIX_URL",
                         "AGENTTEAMS_WORKER_MATRIX_TOKEN",

@@ -33,6 +33,7 @@ def test_absolute_private_paths(roots):
     "rm -rf /", "rm -rf /tmp", "rm -rf /tmp/patchwork", "rm -rf .", "rm -rf ..",
     "rm -rf ../another-task", "rm -rf /shared/tasks/other", "rm -rf cache /etc/config",
     "rm -rf *", 'rm -rf "$OTHER/cache"', 'rm -rf "$(pwd)/cache"',
+    "rm -rf ~/shared/cache", "rm -rf ~another-user/cache",
     "rm -rf cache; rm -rf /shared", "cd /shared && rm -rf cache", "rm -rf cache\nrm /etc/config",
     "env TMPDIR=/shared rm -rf $TMPDIR/cache", "sudo rm -rf cache", "rm -rf $TMPDIR",
     "rm -rf --interactive=never cache", "echo rm cache", "rm -rf cache > /shared/file",

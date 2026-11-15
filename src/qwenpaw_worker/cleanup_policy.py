@@ -13,7 +13,7 @@ def is_private_cleanup(
     command = re.sub(r"^export QWENPAW_SESSION_ID='[^'\r\n]*' && ", "", command, count=1)
     # Compound programs, globbing and arbitrary expansion keep native approval.
     command = command.replace("${TMPDIR}", "$TMPDIR").replace("${TMPDIR:-/tmp}/", "$TMPDIR/")
-    if re.search(r"[;&|()<>`\n\r*?\[\]{}]", command):
+    if re.search(r"[;&|()<>`~\n\r*?\[\]{}]", command):
         return False
     if "$" in command.replace("$TMPDIR/", ""):
         return False

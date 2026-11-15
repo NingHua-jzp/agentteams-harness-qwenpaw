@@ -17,6 +17,7 @@ def roots(tmp_path: Path):
 @pytest.mark.parametrize("command", [
     "rm -rf build/cache", "rm -- 'temporary file.txt'", "/bin/rm -f out.json",
     'rm -rf "$TMPDIR/patchwork" "${TMPDIR}/rehearsal"',
+    'export QWENPAW_SESSION_ID=\'matrix:!task:test\' && rm -rf "$TMPDIR/rehearsal"',
 ])
 def test_private_cleanup_does_not_need_approval(roots, command):
     assert is_private_cleanup(command, *roots)
@@ -34,6 +35,9 @@ def test_absolute_private_paths(roots):
     "rm -rf cache; rm -rf /shared", "cd /shared && rm -rf cache", "rm -rf cache\nrm /etc/config",
     "env TMPDIR=/shared rm -rf $TMPDIR/cache", "sudo rm -rf cache", "rm -rf $TMPDIR",
     "rm -rf --interactive=never cache", "echo rm cache", "rm -rf cache > /shared/file",
+    "export QWENPAW_SESSION_ID='matrix:!task:test' && rm -rf /shared/tasks/other",
+    "export QWENPAW_SESSION_ID='x' && export TMPDIR=/shared && rm -rf $TMPDIR/other",
+    "export QWENPAW_SESSION_ID=$(pwd) && rm -rf cache",
 ])
 def test_unverified_or_outside_cleanup_still_requires_approval(roots, command):
     assert not is_private_cleanup(command, *roots)

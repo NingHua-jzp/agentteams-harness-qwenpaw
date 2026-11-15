@@ -8,6 +8,9 @@ import shlex
 def is_private_cleanup(
     command: str, workspace: Path, scratch: Path | None, cwd: Path | None = None,
 ) -> bool:
+    # qwen-code-bridge injects this literal session binding before every shell
+    # tool call. It changes neither the cwd nor the cleanup target expansion.
+    command = re.sub(r"^export QWENPAW_SESSION_ID='[^'\r\n]*' && ", "", command, count=1)
     # Compound programs, globbing and arbitrary expansion keep native approval.
     command = command.replace("${TMPDIR}", "$TMPDIR")
     if re.search(r"[;&|()<>`\n\r*?\[\]{}]", command):

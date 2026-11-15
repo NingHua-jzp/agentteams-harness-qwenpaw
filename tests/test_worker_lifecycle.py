@@ -22,7 +22,9 @@ from qwenpaw_worker.worker import BUILTIN_QWENPAW_PLUGIN_MARKER, Worker
 
 
 @pytest.fixture(autouse=True)
-def _clear_agent_workspace_env():
+def _clear_agent_workspace_env(monkeypatch):
+    monkeypatch.delenv("TMPDIR", raising=False)
+    monkeypatch.delenv("AGENTTEAMS_PRIVATE_TMPDIR", raising=False)
     original = os.environ.pop("AGENT_WORKSPACE", None)
     original_qwenpaw_secret_dir = os.environ.pop("QWENPAW_SECRET_DIR", None)
     try:
@@ -872,10 +874,19 @@ async def test_start_migrates_copaw_state_restored_by_mirror_before_qwenpaw_init
 def test_prepare_env_exposes_agent_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config = _config(tmp_path)
     monkeypatch.delenv("AGENT_WORKSPACE", raising=False)
+    monkeypatch.delenv("TMPDIR", raising=False)
+    monkeypatch.delenv("AGENTTEAMS_PRIVATE_TMPDIR", raising=False)
 
     Worker(config)._prepare_env()
 
     assert os.environ["AGENT_WORKSPACE"] == str(config.default_workspace_dir)
+    scratch = Path(os.environ["AGENTTEAMS_PRIVATE_TMPDIR"])
+    try:
+        assert os.environ["TMPDIR"] == str(scratch)
+        assert scratch.is_dir()
+        assert scratch.stat().st_mode & 0o777 == 0o700
+    finally:
+        scratch.rmdir()
 
 
 def test_builtin_plugin_mcp_is_reconciled_through_api(

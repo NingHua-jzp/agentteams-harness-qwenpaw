@@ -27,6 +27,14 @@ QwenPaw localhost HTTP API.
 
 ### 1.2 Storage Sync
 
+Private cleanup does not require approval: a standalone `rm` with explicit
+targets beneath the agent workspace or its runtime-created `$TMPDIR` is
+allowed. Targets are resolved against the shell `cwd` and through symlinks.
+Workspace roots, shared-directory symlinks, other tasks, global `/tmp`, globbing
+and compound commands retain native approval. Other security findings,
+including sensitive-file and catastrophic-command checks, remain enforced.
+This policy does not disable the ToolGuard or grant all shell commands.
+
 - Restore worker and shared files from object storage on startup.
 - Persist eligible local runtime changes back to object storage.
 - Exclude credentials, shared projections, logs, tool results,

@@ -17,6 +17,7 @@ def roots(tmp_path: Path):
 @pytest.mark.parametrize("command", [
     "rm -rf build/cache", "rm -- 'temporary file.txt'", "/bin/rm -f out.json",
     'rm -rf "$TMPDIR/patchwork" "${TMPDIR}/rehearsal"',
+    'rm -f "${TMPDIR:-/tmp}/ut-1900.out"',
     'export QWENPAW_SESSION_ID=\'matrix:!task:test\' && rm -rf "$TMPDIR/rehearsal"',
 ])
 def test_private_cleanup_does_not_need_approval(roots, command):
@@ -35,6 +36,7 @@ def test_absolute_private_paths(roots):
     "rm -rf cache; rm -rf /shared", "cd /shared && rm -rf cache", "rm -rf cache\nrm /etc/config",
     "env TMPDIR=/shared rm -rf $TMPDIR/cache", "sudo rm -rf cache", "rm -rf $TMPDIR",
     "rm -rf --interactive=never cache", "echo rm cache", "rm -rf cache > /shared/file",
+    'rm -rf "${TMPDIR:-/tmp}/../../public"', 'rm -rf "${TMPDIR:-/shared}/other"',
     "export QWENPAW_SESSION_ID='matrix:!task:test' && rm -rf /shared/tasks/other",
     "export QWENPAW_SESSION_ID='x' && export TMPDIR=/shared && rm -rf $TMPDIR/other",
     "export QWENPAW_SESSION_ID=$(pwd) && rm -rf cache",
@@ -59,6 +61,7 @@ def test_symlink_inside_scratch_cannot_escape(roots, tmp_path):
 
 def test_missing_private_scratch_does_not_grant_tmpdir(roots):
     assert not is_private_cleanup('rm -rf "$TMPDIR/cache"', roots[0], None)
+    assert not is_private_cleanup('rm -f "${TMPDIR:-/tmp}/ut-1900.out"', roots[0], None)
 
 
 def test_relative_paths_use_the_shell_cwd(roots, tmp_path):

@@ -1173,6 +1173,7 @@ class Worker:
             self.heartbeat,
             worker_name=self.config.worker_cr_name,
             port=self.config.console_port,
+            skill_warnings=lambda: self.updater.skill_warnings,
         )
 
     def _system_prompt_files(self, runtime_config: MemberRuntimeConfig | None = None) -> list[str]:

@@ -1790,7 +1790,8 @@ async def test_heartbeat_probe_loop_delegates_to_heartbeat_module(
     worker = Worker(config)
     calls: list[tuple[str, int]] = []
 
-    async def fake_loop(heartbeat, *, worker_name, port):
+    async def fake_loop(heartbeat, *, worker_name, port, skill_warnings):
+        assert skill_warnings() == worker.updater.skill_warnings
         calls.append((worker_name, port))
         heartbeat.update("ready", "qwenpaw ready")
         raise asyncio.CancelledError

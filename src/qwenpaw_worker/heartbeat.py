@@ -10,7 +10,7 @@ import logging
 import os
 from pathlib import Path
 import time
-from typing import Any, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple
 import urllib.error
 import urllib.request
 
@@ -136,6 +136,7 @@ def _agent_status_report_fields(payload: Dict[str, Any] | None) -> Dict[str, Any
         ("running_task_count", "runningTaskCount"),
         ("last_run_at", "lastRunAt"),
         ("last_finish_at", "lastFinishAt"),
+        ("skill_warnings", "skillWarnings"),
     ):
         value = payload.get(source)
         if value is not None:
@@ -234,6 +235,7 @@ async def run_worker_heartbeat_loop(
     local_interval: float = 5,
     report_interval: float | None = None,
     reporter: ControllerHeartbeatReporter | None = None,
+    skill_warnings: Callable[[], list[str]] | None = None,
 ) -> None:
     """Probe QwenPaw locally and report worker status to the controller."""
 
@@ -244,7 +246,7 @@ async def run_worker_heartbeat_loop(
     ready_reported = False
     next_report_at = 0.0
     last_status: tuple[str, str] | None = None
-    last_agent_status_key: tuple[str, int | None] | None = None
+    last_agent_status_key: tuple[str, int | None, tuple[str, ...]] | None = None
 
     logger.info(
         "qwenpaw heartbeat loop started component=heartbeat worker=%s port=%s local_interval_seconds=%s "
@@ -259,6 +261,10 @@ async def run_worker_heartbeat_loop(
     try:
         while True:
             status, message, details = await asyncio.to_thread(check_qwenpaw_heartbeat, port)
+            warnings = skill_warnings() if skill_warnings is not None else []
+            if warnings:
+                details = {**details, "skillWarnings": warnings}
+                message += "; Skill assignment warning: " + "; ".join(warnings)
             heartbeat.update(status, message, details)
             status_key = (status, message)
             if status_key != last_status:
@@ -272,12 +278,15 @@ async def run_worker_heartbeat_loop(
 
             if status == "ready" and reporter.enabled():
                 agent_status = await asyncio.to_thread(get_qwenpaw_agent_status, port)
+                if skill_warnings is not None:
+                    agent_status = {**(agent_status or {}), "skill_warnings": warnings}
                 last_active_at = derive_last_active_at(agent_status)
                 # Change-driven report: the status light must flip within
                 # one local poll (5s), not wait for the 60s heartbeat.
                 agent_status_key = (
                     (agent_status or {}).get("status"),
                     (agent_status or {}).get("running_task_count"),
+                    tuple(warnings),
                 )
                 if agent_status_key != last_agent_status_key:
                     last_agent_status_key = agent_status_key

@@ -6,6 +6,14 @@ from threading import Thread
 
 import pytest
 
+
+def test_skill_enable_does_not_treat_missing_per_skill_results_as_success(monkeypatch):
+    from qwenpaw_worker.api import QwenPawApiClient, QwenPawApiError
+    client = QwenPawApiClient("http://unused")
+    monkeypatch.setattr(client, "_request", lambda *_args: {"results": {"healthy": {"success": True}}})
+    with pytest.raises(QwenPawApiError, match="missing"):
+        client.refresh_and_enable_skills(["healthy", "missing"])
+
 from qwenpaw_worker.api import QwenPawApiClient, QwenPawApiError
 
 

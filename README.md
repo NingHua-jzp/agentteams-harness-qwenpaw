@@ -24,6 +24,14 @@ Dependencies are prepared under the ignored `.deps/AgentTeams` directory.
 See [the runtime guide](docs/runtime.md) for lifecycle, configuration, plugin
 boundaries and opt-in image integration tests.
 
+Assigned skill sync, malformed frontmatter, and enable failures are non-blocking:
+healthy skills continue loading and the Agent stays ready. Affected skills are
+named in warning logs and `heartbeat.json` (`details.skillWarnings`), and Worker
+heartbeats report `skillWarnings` to supporting Controllers for Dashboard display.
+Failed assignments retry on the runtime-config polling interval and clear their
+warnings after recovery. Skills with invalid local content are disabled; a
+transient storage sync failure retains the previously loaded runtime copy.
+
 ## Build and test
 
 Use Python 3.11–3.13, Ruby, Git, and Docker with BuildKit:

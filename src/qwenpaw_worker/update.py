@@ -1337,6 +1337,12 @@ class RuntimeUpdater:
         self._applied_package_skills_identity: Optional[str] = None
         self._applied_managed_skills_identity: Optional[str] = None
         self._applied_inline_config_identity: Optional[str] = None
+        self._managed_skill_warnings: List[str] = []
+        self._package_skill_warnings: List[str] = []
+
+    @property
+    def skill_warnings(self) -> List[str]:
+        return self._managed_skill_warnings + self._package_skill_warnings
 
     def load(self) -> MemberRuntimeConfig:
         if self.runtime_config_pull is not None:
@@ -1357,6 +1363,7 @@ class RuntimeUpdater:
             or previous is None
             or config.changed_from(previous)
             or self._matrix_retry_pending
+            or bool(self.skill_warnings)
         )
         if not changed:
             logger.info(
@@ -1413,10 +1420,12 @@ class RuntimeUpdater:
             or config.agent_package_identity != self._applied_agent_package_identity
         )
         managed_skills_identity = self._component_identity(self._managed_skill_names(config))
+        previous_skill_warnings = set(self.skill_warnings)
         managed_skills_should_apply = (
             force
             or package_should_apply
             or managed_skills_identity != self._applied_managed_skills_identity
+            or bool(self._managed_skill_warnings)
         )
         inline_config_identity = self._component_identity(config.inline_config)
         inline_config_should_apply = (
@@ -1506,11 +1515,17 @@ class RuntimeUpdater:
             force
             or package_skills_identity != self._applied_package_skills_identity
         )
-        if package_should_apply and package_skills_should_apply:
-            self._apply_package_skills(applied_package)
+        if (package_should_apply and package_skills_should_apply) or self._package_skill_warnings:
+            self._package_skill_warnings = self._apply_package_skills(applied_package)
         if managed_skills_should_apply:
-            self._apply_managed_skills(config)
-            self._applied_managed_skills_identity = managed_skills_identity
+            self._managed_skill_warnings = self._apply_managed_skills(config)
+            if not self._managed_skill_warnings:
+                self._applied_managed_skills_identity = managed_skills_identity
+        for warning in self.skill_warnings:
+            if warning not in previous_skill_warnings:
+                logger.warning("Skill assignment warning: %s", warning)
+        if previous_skill_warnings and not self.skill_warnings:
+            logger.info("Skill assignment recovered worker=%s", self.config.worker_name)
         if inline_config_should_apply:
             self._apply_inline_config(config)
             self._applied_inline_config_identity = inline_config_identity
@@ -1911,31 +1926,68 @@ class RuntimeUpdater:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
 
-    def _apply_package_skills(self, package_dir: Optional[Path]) -> None:
+    def _apply_package_skills(self, package_dir: Optional[Path]) -> List[str]:
         if package_dir is None or self.api_client is None:
-            return
+            return []
         package_skills = getattr(self.package_manager, "package_skill_names", None)
         skill_names = package_skills(package_dir) if callable(package_skills) else []
-        if skill_names:
-            self.api_client.refresh_and_enable_skills(skill_names)
+        return self._enable_skills(skill_names)
 
-    def _apply_managed_skills(self, config: MemberRuntimeConfig) -> None:
+    def _apply_managed_skills(self, config: MemberRuntimeConfig) -> List[str]:
         skill_names = self._managed_skill_names(config)
+        warnings: List[str] = []
+        available: List[str] = []
+        for name in skill_names:
+            stage = "sync"
+            try:
+                if self.skill_sync is None:
+                    raise RuntimeError("skill sync is unavailable")
+                self.skill_sync([name])
+                stage = "load"
+                skill_file = self.config.default_workspace_dir / "skills" / name / "SKILL.md"
+                if not skill_file.is_file():
+                    raise FileNotFoundError("assigned SKILL.md is missing")
+                content = skill_file.read_text(encoding="utf-8")
+                if content.startswith("---\n") or content.startswith("---\r\n"):
+                    frontmatter = re.match(r"\A---\s*\n(.*?)\n---(?:\s*\n|\s*$)", content, re.DOTALL)
+                    if frontmatter is None:
+                        raise ValueError("SKILL.md frontmatter is not closed")
+                    metadata = yaml.safe_load(frontmatter.group(1))
+                    if not isinstance(metadata, dict):
+                        raise ValueError("SKILL.md frontmatter must be a mapping")
+                available.append(name)
+            except Exception as exc:
+                warning = f"Skill {name}: {stage} failed ({type(exc).__name__})"
+                if stage == "load" and self.api_client is not None:
+                    try:
+                        self.api_client.disable_skill(name)
+                    except Exception:
+                        # Keep the original assignment warning; a missing
+                        # skill may not have a runtime entry to disable.
+                        pass
+                warnings.append(warning)
+        return warnings + self._enable_skills(available)
+
+    def _enable_skills(self, skill_names: List[str]) -> List[str]:
         if not skill_names:
-            return
-        if self.skill_sync is None:
-            raise RuntimeError("AgentTeams skill sync is required for assigned QwenPaw skills")
-        if self.api_client is None:
-            raise RuntimeError("QwenPaw API client is required for assigned skills")
-        self.skill_sync(skill_names)
-        missing = [
-            name
-            for name in skill_names
-            if not (self.config.default_workspace_dir / "skills" / name / "SKILL.md").is_file()
-        ]
-        if missing:
-            raise RuntimeError(f"assigned skill files are missing: {', '.join(missing)}")
-        self.api_client.refresh_and_enable_skills(skill_names)
+            return []
+        warnings: List[str] = []
+        try:
+            if self.api_client is None:
+                raise RuntimeError("skill API is unavailable")
+            self.api_client.refresh_and_enable_skills(skill_names)
+            return []
+        except Exception:
+            # A failed batch must not prevent healthy skills from being enabled.
+            for name in skill_names:
+                try:
+                    if self.api_client is None:
+                        raise RuntimeError("skill API is unavailable")
+                    self.api_client.refresh_and_enable_skills([name])
+                except Exception as exc:
+                    warning = f"Skill {name}: enable failed ({type(exc).__name__})"
+                    warnings.append(warning)
+        return warnings
 
     def _managed_skill_names(self, config: MemberRuntimeConfig) -> List[str]:
         return sorted(set(config.skills))

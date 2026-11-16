@@ -59,6 +59,10 @@ class _FakeQwenPawApi:
         self.subagent_model_reads = 0
         self.enabled_skills = []
         self.skill_events = []
+        self.disabled_skills = []
+
+    def disable_skill(self, name):
+        self.disabled_skills.append(name)
 
     def get_channel(self, channel):
         return dict(self.channels.get(channel, {}))
@@ -187,6 +191,83 @@ def test_runtime_updater_syncs_and_enables_assigned_skills(tmp_path: Path) -> No
     assert updater.api_client.enabled_skills == ["competition-skill"]
 
 
+def test_bad_assigned_skill_warns_without_blocking_healthy_skills_and_recovers(tmp_path: Path, caplog) -> None:
+    config = _config(tmp_path)
+    broken = {"bad-sync", "missing-file", "bad-enable"}
+
+    def sync_skills(names):
+        for name in names:
+            if name == "bad-sync" and name in broken:
+                raise RuntimeError("storage unavailable")
+            if name == "missing-file" and name in broken:
+                continue
+            path = config.default_workspace_dir / "skills" / name / "SKILL.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"# {name}\n")
+
+    api = _FakeQwenPawApi()
+    enable = api.refresh_and_enable_skills
+
+    def enable_skills(names):
+        if "bad-enable" in names and "bad-enable" in broken:
+            raise RuntimeError("invalid skill metadata")
+        return enable(names)
+
+    api.refresh_and_enable_skills = enable_skills
+    updater = _runtime_updater(config=config, package_manager=_NoopPackageManager(), skill_sync=sync_skills, api_client=api)
+    desired = MemberRuntimeConfig(path=config.runtime_config_path, raw={
+        "metadata": {"generation": "1"}, "member": {"runtime": "qwenpaw"},
+        "desired": {"skills": ["bad-sync", "missing-file", "bad-enable", "healthy"], "inlineConfig": {"soul": "You remain available."}},
+    })
+    with caplog.at_level(logging.WARNING):
+        updater.apply_once(runtime_config=desired)
+    assert updater.current_config is desired
+    assert ["healthy"] in api.skill_events
+    assert len(updater.skill_warnings) == 3
+    assert all(name in " ".join(updater.skill_warnings) for name in broken)
+    assert "Skill assignment warning" in caplog.text
+
+    broken.clear()
+    updater.apply_once(runtime_config=desired)
+    assert updater.skill_warnings == []
+    assert set(api.enabled_skills) == set(desired.skills)
+
+
+def test_package_skill_enable_failure_is_a_nonblocking_warning(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    class Package(_NoopPackageManager):
+        def apply(self, _config):
+            return tmp_path
+        def package_skill_names(self, _directory):
+            return ["broken-package-skill"]
+    api = _FakeQwenPawApi()
+    def enable(_names):
+        raise RuntimeError("invalid metadata")
+    api.refresh_and_enable_skills = enable
+    updater = _runtime_updater(config=config, package_manager=Package(), api_client=api)
+    desired = MemberRuntimeConfig(path=config.runtime_config_path, raw={"member": {"runtime": "qwenpaw"}})
+    updater.apply_once(runtime_config=desired)
+    assert updater.current_config is desired
+    assert "broken-package-skill" in " ".join(updater.skill_warnings)
+
+
+def test_malformed_skill_is_disabled_without_blocking_other_assignments(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    def sync(names):
+        for name in names:
+            path = config.default_workspace_dir / "skills" / name / "SKILL.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("---\nname: [broken\n---\n" if name == "broken" else "# Healthy\n")
+    updater = _runtime_updater(config=config, package_manager=_NoopPackageManager(), skill_sync=sync)
+    desired = MemberRuntimeConfig(path=config.runtime_config_path, raw={"desired": {"skills": ["broken", "healthy"]}})
+    updater.apply_once(runtime_config=desired)
+    assert updater.api_client.disabled_skills == ["broken"]
+    assert updater.api_client.enabled_skills == ["healthy"]
+    assert "broken" in updater.skill_warnings[0]
+    updater.apply_once(runtime_config=MemberRuntimeConfig(path=config.runtime_config_path, raw={"desired": {"skills": []}}))
+    assert updater.skill_warnings == []
+
+
 def test_runtime_updater_treats_managed_skill_order_as_equivalent(tmp_path: Path) -> None:
     config = _config(tmp_path)
     synced: list[list[str]] = []
@@ -217,7 +298,7 @@ def test_runtime_updater_treats_managed_skill_order_as_equivalent(tmp_path: Path
     updater.apply_once(runtime_config=runtime_config(["beta", "alpha"]))
     updater.apply_once(runtime_config=runtime_config(["alpha", "beta"]))
 
-    assert synced == [["alpha", "beta"]]
+    assert synced == [["alpha"], ["beta"]]
     assert updater.api_client.skill_events == [["alpha", "beta"]]
 
 

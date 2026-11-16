@@ -33,6 +33,27 @@ def test_worker_heartbeat_persists_qwenpaw_process_status(tmp_path: Path) -> Non
     assert data["details"]["url"].endswith("/api/version")
 
 
+@pytest.mark.anyio
+async def test_skill_warning_keeps_worker_ready_and_clears_after_recovery(tmp_path, monkeypatch):
+    heartbeat = WorkerHeartbeat(tmp_path / "heartbeat.json")
+    warnings = ["Skill broken: sync failed (FileNotFoundError)"]
+    snapshots = []
+    monkeypatch.delenv("AGENTTEAMS_CONTROLLER_URL", raising=False)
+    monkeypatch.setattr("qwenpaw_worker.heartbeat.check_qwenpaw_heartbeat", lambda _port: ("ready", "API reachable", {}))
+    async def tick(_seconds):
+        snapshots.append(heartbeat.snapshot())
+        if len(snapshots) == 2:
+            raise asyncio.CancelledError
+        warnings.clear()
+    monkeypatch.setattr("qwenpaw_worker.heartbeat.asyncio.sleep", tick)
+    with pytest.raises(asyncio.CancelledError):
+        await run_worker_heartbeat_loop(heartbeat, worker_name="worker-a", port=8088, skill_warnings=lambda: list(warnings))
+    assert all(snapshot["status"] == "ready" for snapshot in snapshots)
+    assert "Skill assignment warning" in snapshots[0]["message"]
+    assert snapshots[0]["details"]["skillWarnings"]
+    assert "skillWarnings" not in snapshots[1]["details"]
+
+
 def test_qwenpaw_health_probe_uses_native_version_endpoint() -> None:
     server, requests = _start_server(
         {

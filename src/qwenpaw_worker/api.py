@@ -804,6 +804,9 @@ class QwenPawApiClient:
         encoded = urllib.parse.quote(plugin_id, safe="")
         return self._request("POST", f"/api/{encoded}/sync", {})
 
+    def disable_skill(self, name: str) -> None:
+        self._request("POST", f"/api/skills/{urllib.parse.quote(name, safe='')}/disable", {})
+
     def refresh_and_enable_skills(
         self,
         skill_names: Iterable[str],
@@ -813,10 +816,11 @@ class QwenPawApiClient:
         if not names:
             return {"results": {}}
         result = self._request("POST", "/api/skills/batch-enable", names)
+        results = result.get("results") or {}
         failed = sorted(
             name
-            for name, value in (result.get("results") or {}).items()
-            if not isinstance(value, dict) or not value.get("success")
+            for name in names
+            if not isinstance(results.get(name), dict) or not results[name].get("success")
         )
         if failed:
             raise QwenPawApiError(

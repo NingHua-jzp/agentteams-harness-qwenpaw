@@ -1108,6 +1108,7 @@ class Worker:
                         "AGENTTEAMS_AGENT_ROLE",
                         "AGENTTEAMS_WORKER_NAME",
                         "AGENTTEAMS_CONTROLLER_URL",
+                        "AGENTTEAMS_PROCESS_ID",
                         "AGENTTEAMS_AUTH_TOKEN",
                         "AGENTTEAMS_AUTH_TOKEN_FILE",
                         "AGENTTEAMS_OTEL_ENABLED",

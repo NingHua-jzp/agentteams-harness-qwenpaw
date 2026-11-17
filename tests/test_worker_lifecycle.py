@@ -981,6 +981,7 @@ def test_builtin_mcp_child_can_commit_task_meta(
     thread = threading.Thread(target=http.serve_forever, daemon=True)
     thread.start()
     monkeypatch.setenv("AGENTTEAMS_CONTROLLER_URL", f"http://127.0.0.1:{http.server_port}")
+    monkeypatch.setenv("AGENTTEAMS_PROCESS_ID", "fixture-boot:uuid")
     monkeypatch.delenv("AGENTTEAMS_AUTH_TOKEN", raising=False)
     monkeypatch.delenv("AGENTTEAMS_AUTH_TOKEN_FILE", raising=False)
     if token_source == "file":
@@ -1013,6 +1014,7 @@ def test_builtin_mcp_child_can_commit_task_meta(
         assert path == "/api/v1/tasks/task-1/meta?team=team-1"
         assert headers["Authorization"] == "Bearer fixture-token"
         assert headers["If-Match"] == "read-etag"
+        assert headers["X-AgentTeams-Process-ID"] == "fixture-boot:uuid"
         assert body == {"status": "in_progress"}
     finally:
         http.shutdown()

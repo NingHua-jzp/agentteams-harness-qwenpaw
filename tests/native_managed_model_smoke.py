@@ -49,6 +49,14 @@ with tempfile.TemporaryDirectory() as directory:
             assert not Catalog.calls, Catalog.calls
             assert result["active_llm"]["model"] == "qwen3.6-plus"
             print(json.dumps({"passed": True, "native_model_readback": True, "remote_catalog_calls": Catalog.calls, "model_calls": 0}))
+        except Exception:
+            # --rm and TemporaryDirectory otherwise discard the only native
+            # evidence for a localhost management-API timeout in image CI.
+            log.flush()
+            log.seek(0)
+            print(json.dumps({"remote_catalog_calls": Catalog.calls, "native_exit": app.poll()}), flush=True)
+            print(log.read()[-8000:], flush=True)
+            raise
         finally:
             app.terminate()
             try:

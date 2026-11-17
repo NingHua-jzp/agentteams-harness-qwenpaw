@@ -160,7 +160,8 @@ RUN SITE=/opt/venv/qwenpaw/lib/python3.11/site-packages && \
 RUN mkdir -p /opt/agentteams/plugins
 COPY --from=agentteams dist/adapters/qwenpaw/teamharness-qwenpaw.zip /opt/agentteams/plugins/teamharness-qwenpaw.zip
 COPY --from=agentteams dist/adapters/qwenpaw/workerflow-qwenpaw.zip /opt/agentteams/plugins/workerflow-qwenpaw.zip
-COPY --from=agentteams plugins/agentteams-matrix-channel/ /opt/agentteams/plugins/agentteams-matrix-channel/
+COPY --from=agentteams plugins/agentteams-matrix/adapters/qwenpaw/ /opt/agentteams/plugins/agentteams-matrix-channel/
+COPY --from=agentteams plugins/agentteams-matrix/core/ /opt/agentteams/plugins/agentteams-matrix-channel/core/
 COPY --from=agentteams plugins/agentteams-upgrade/ /opt/agentteams/plugins/agentteams-upgrade/
 COPY --from=agentteams plugins/qwen-code-bridge/ /opt/agentteams/plugins/qwen-code-bridge/
 COPY scripts/install-builtin-qwenpaw-plugins.py /tmp/install-builtin-qwenpaw-plugins.py

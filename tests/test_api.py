@@ -608,6 +608,9 @@ def test_configure_active_model_creates_provider_with_capabilities(api_url):
     assert "supports_video" in created["config_overrides"]
     assert _ApiHandler.model_deletes == 0
     assert provider["base_url"] == "http://gateway.example.com/v1"
+    # The Controller already declares the model; a catalog refresh must not
+    # block configuration readback or startup on unrelated remote discovery.
+    assert provider["auto_discover"] is False
     assert _ApiHandler.active_llm == {
         "provider_id": "agentteams-gateway",
         "model": "qwen3.6-plus",

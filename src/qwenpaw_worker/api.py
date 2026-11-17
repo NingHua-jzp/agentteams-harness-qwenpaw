@@ -438,7 +438,8 @@ class QwenPawApiClient:
                 elif outcome == "re-add":
                     write_path = "delete + re-add"
                     assert_probe_source = True
-        config_payload: dict[str, Any] = {"chat_model": chat_model}
+        # The declared managed model needs no remote catalog discovery.
+        config_payload: dict[str, Any] = {"chat_model": chat_model, "auto_discover": False}
         if api_key:
             config_payload["api_key"] = api_key
         if base_url:

@@ -16,6 +16,7 @@ import zipfile
 
 import pytest
 
+from qwenpaw_worker import worker as worker_module
 from qwenpaw_worker.config import WorkerConfig
 from qwenpaw_worker.update import MemberRuntimeConfig
 from qwenpaw_worker.worker import BUILTIN_QWENPAW_PLUGIN_MARKER, Worker
@@ -1810,17 +1811,20 @@ async def test_heartbeat_probe_loop_delegates_to_heartbeat_module(
 
 def test_api_readiness_waits_for_default_agent_startup(tmp_path, monkeypatch):
     worker = Worker(_config(tmp_path))
-    states = iter(['pending', 'starting', 'running'])
+    elapsed = 0
+    monkeypatch.setattr(worker_module, "time", types.SimpleNamespace(monotonic=lambda: elapsed))
+    states = iter([("pending", 30), ("starting", 65), ("running", 95)])
     observed = []
 
     def request(method, path, *args):
+        nonlocal elapsed
         if path == '/api/version':
             # The pin raises the readiness floor to 2.2.2.post1, so the
             # fake app must report that floor or the readiness gate fails
             # before the startup-state polling this test is about.
             return {'version': '2.2.2.post1'}
         assert (method, path) == ('GET', '/api/agents')
-        state = next(states)
+        state, elapsed = next(states)
         observed.append(state)
         return {'agents': [{'id': 'default', 'startup_status': state}]}
 

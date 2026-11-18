@@ -1060,7 +1060,8 @@ class Worker:
             )
 
     async def _wait_for_qwenpaw_api(self) -> None:
-        deadline = time.monotonic() + 60
+        # Cold startup can spend more than a minute importing the SDK and its MCP tools.
+        deadline = time.monotonic() + 180
         last_error: Optional[Exception] = None
         while time.monotonic() < deadline:
             if self._process is not None and self._process.returncode is not None:

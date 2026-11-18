@@ -42,7 +42,9 @@ with tempfile.TemporaryDirectory() as directory:
                     if time.monotonic() > deadline or app.poll() is not None:
                         raise RuntimeError("Native app did not become ready")
                     time.sleep(0.2)
-            client = Client(endpoint, timeout=3)
+            # Selecting a model also initializes the native agent on a cold
+            # runner. Catalog.calls independently checks for remote discovery.
+            client = Client(endpoint)
             result = client.configure_active_model("managed-fixture", "qwen3.6-plus", base_url="http://127.0.0.1:" + str(gateway.server_port) + "/v1", api_key="fixture-no-model-call", supports_image=True, supports_video=False)
             # Background discovery would otherwise start after returning config.
             time.sleep(0.5)

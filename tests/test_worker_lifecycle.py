@@ -16,6 +16,7 @@ import zipfile
 
 import pytest
 
+from qwenpaw_worker import worker as worker_module
 from qwenpaw_worker.config import WorkerConfig
 from qwenpaw_worker.update import MemberRuntimeConfig
 from qwenpaw_worker.worker import BUILTIN_QWENPAW_PLUGIN_MARKER, Worker
@@ -981,6 +982,7 @@ def test_builtin_mcp_child_can_commit_task_meta(
     thread = threading.Thread(target=http.serve_forever, daemon=True)
     thread.start()
     monkeypatch.setenv("AGENTTEAMS_CONTROLLER_URL", f"http://127.0.0.1:{http.server_port}")
+    monkeypatch.setenv("AGENTTEAMS_PROCESS_ID", "fixture-boot:uuid")
     monkeypatch.delenv("AGENTTEAMS_AUTH_TOKEN", raising=False)
     monkeypatch.delenv("AGENTTEAMS_AUTH_TOKEN_FILE", raising=False)
     if token_source == "file":
@@ -1013,6 +1015,7 @@ def test_builtin_mcp_child_can_commit_task_meta(
         assert path == "/api/v1/tasks/task-1/meta?team=team-1"
         assert headers["Authorization"] == "Bearer fixture-token"
         assert headers["If-Match"] == "read-etag"
+        assert headers["X-AgentTeams-Process-ID"] == "fixture-boot:uuid"
         assert body == {"status": "in_progress"}
     finally:
         http.shutdown()
@@ -1808,17 +1811,20 @@ async def test_heartbeat_probe_loop_delegates_to_heartbeat_module(
 
 def test_api_readiness_waits_for_default_agent_startup(tmp_path, monkeypatch):
     worker = Worker(_config(tmp_path))
-    states = iter(['pending', 'starting', 'running'])
+    elapsed = 0
+    monkeypatch.setattr(worker_module, "time", types.SimpleNamespace(monotonic=lambda: elapsed))
+    states = iter([("pending", 30), ("starting", 65), ("running", 95)])
     observed = []
 
     def request(method, path, *args):
+        nonlocal elapsed
         if path == '/api/version':
             # The pin raises the readiness floor to 2.2.2.post1, so the
             # fake app must report that floor or the readiness gate fails
             # before the startup-state polling this test is about.
             return {'version': '2.2.2.post1'}
         assert (method, path) == ('GET', '/api/agents')
-        state = next(states)
+        state, elapsed = next(states)
         observed.append(state)
         return {'agents': [{'id': 'default', 'startup_status': state}]}
 

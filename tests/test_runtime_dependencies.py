@@ -28,7 +28,7 @@ def test_runtime_uses_public_qwenpaw_extension_points_only() -> None:
         for path in (
             ROOT / "src" / "qwenpaw_worker" / "worker.py",
             ROOT / "src" / "qwenpaw_worker" / "update.py",
-            AT_ROOT / "plugins" / "teamharness" / "adapters" / "qwenpaw" / "plugin.py",
+            ROOT / "adapters" / "teamharness" / "plugin.py",
             AT_ROOT / "plugins" / "workerflow" / "adapters" / "qwenpaw" / "plugin.py",
         )
     )

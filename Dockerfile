@@ -160,7 +160,7 @@ RUN SITE=/opt/venv/qwenpaw/lib/python3.11/site-packages && \
 RUN mkdir -p /opt/agentteams/plugins
 COPY --from=agentteams dist/adapters/qwenpaw/teamharness-qwenpaw.zip /opt/agentteams/plugins/teamharness-qwenpaw.zip
 COPY --from=agentteams dist/adapters/qwenpaw/workerflow-qwenpaw.zip /opt/agentteams/plugins/workerflow-qwenpaw.zip
-COPY --from=agentteams plugins/agentteams-matrix/adapters/qwenpaw/ /opt/agentteams/plugins/agentteams-matrix-channel/
+COPY adapters/matrix/ /opt/agentteams/plugins/agentteams-matrix-channel/
 COPY --from=agentteams plugins/agentteams-matrix/core/ /opt/agentteams/plugins/agentteams-matrix-channel/core/
 COPY --from=agentteams plugins/agentteams-upgrade/ /opt/agentteams/plugins/agentteams-upgrade/
 COPY --from=agentteams plugins/qwen-code-bridge/ /opt/agentteams/plugins/qwen-code-bridge/
@@ -179,7 +179,7 @@ COPY --from=agentteams manager/scripts/init/qwenpaw_manager_skill_sync.py /opt/a
 COPY --chmod=755 scripts/qwenpaw-worker-entrypoint.sh /opt/agentteams/scripts/qwenpaw-worker-entrypoint.sh
 COPY --chmod=755 scripts/qwenpaw-teamharness-plugin-reload.sh /opt/agentteams/scripts/qwenpaw-teamharness-plugin-reload.sh
 COPY --from=shared . /opt/agentteams/scripts/lib/
-COPY --from=agentteams plugins/teamharness/adapters/qwenpaw/task_trace.py /opt/agentteams/scripts/lib/telemetry/at_task_trace.py
+COPY adapters/teamharness/task_trace.py /opt/agentteams/scripts/lib/telemetry/at_task_trace.py
 RUN /opt/venv/qwenpaw/bin/pip install --index-url "${PIP_INDEX_URL}" \
     -r /opt/agentteams/scripts/lib/telemetry/requirements.txt
 

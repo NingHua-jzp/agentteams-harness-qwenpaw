@@ -735,7 +735,7 @@ class AgentTeamsMatrixChannel(BaseChannel):
                 yield item
             return
         room_id, run_id = meta.get("room_id"), meta.get("event_id")
-        if not meta.get("is_dm") or not room_id or not run_id:
+        if _is_assistant_turn(meta) or not meta.get("is_dm") or not room_id or not run_id:
             async for item in super()._stream_with_tracker(payload):
                 yield item
             return

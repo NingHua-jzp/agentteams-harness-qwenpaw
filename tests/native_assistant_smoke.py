@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 core = Path(os.environ.get("AT_SOURCE") or os.environ.get("AGENTTEAMS_CORE_SOURCE") or Path(__file__).resolve().parents[1] / ".deps/AgentTeams")
 harness = Path(__file__).resolve().parents[1]
@@ -13,6 +13,7 @@ sys.path[:0] = [str(core / "tests/lib"), str(core / "shared/lib"),
     str(harness / "adapters/matrix"), str(harness / "adapters")]
 from assistant_fixture import AssistantFixture
 from agentteams_matrix.channel import AgentTeamsMatrixChannel
+from qwenpaw.app.channels.base import BaseChannel
 
 
 async def main():
@@ -54,6 +55,13 @@ async def main():
         await channel.on_streaming_end(None, f.room, None, meta, "message", "NO_REPLY")
         await channel._on_process_completed(None, f.room, meta)
         channel._client.room_send.assert_not_awaited()
+        async def stream(_self, _payload):
+            yield "native event"
+        channel._publish_direct_execution = AsyncMock(side_effect=AssertionError("background check published direct status"))
+        with patch.object(BaseChannel, "_stream_with_tracker", stream):
+            output = [item async for item in channel._stream_matrix_payload({"meta": {**meta, "is_dm":True, "room_id":f.room, "event_id":"$assistant"}})]
+        assert output == ["native event"]
+        channel._publish_direct_execution.assert_not_awaited()
         f.context["owner"] = "replaced"
         await channel._on_room_event(room, event)
         assert len(admitted) == 1

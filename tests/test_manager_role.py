@@ -7,7 +7,7 @@ from qwenpaw_worker.heartbeat import ControllerHeartbeatReporter
 from qwenpaw_worker.update import MemberRuntimeConfig
 from qwenpaw_worker.worker import Worker
 
-CORE_ROOT = (Path(__file__).resolve().parents[2] if (Path(__file__).resolve().parents[2] / "plugins").is_dir() else Path(__file__).resolve().parents[1] / ".deps" / "AgentTeams")
+HARNESS_ROOT = Path(__file__).resolve().parents[1]
 
 def test_manager_preserves_workspace_and_resource_identity(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENTTEAMS_AGENT_ROLE", "manager")
@@ -28,7 +28,7 @@ def test_manager_health_report_uses_manager_resource(monkeypatch):
 
 def test_manager_loads_management_prompt_and_only_management_skills(monkeypatch):
     monkeypatch.setenv("AGENTTEAMS_AGENT_ROLE", "manager")
-    path = CORE_ROOT / "plugins/teamharness/adapters/qwenpaw/plugin.py"
+    path = HARNESS_ROOT / "adapters/teamharness/plugin.py"
     spec = importlib.util.spec_from_file_location("manager_test_plugin", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

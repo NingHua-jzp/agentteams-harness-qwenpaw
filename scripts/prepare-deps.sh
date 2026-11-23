@@ -9,5 +9,5 @@ git -C .deps/AgentTeams fetch --depth 1 origin "$AT_REF"
 git -C .deps/AgentTeams checkout --detach "$AT_REF"
 adapter_root="$PWD/adapters/teamharness"
 cd .deps/AgentTeams
-OUT_DIR=dist/adapters/qwenpaw QWENPAW_ADAPTER_ROOT="$adapter_root" ruby "$adapter_root/scripts/build-qwenpaw-plugin.rb" plugins/teamharness/plugin.yaml
+OUT_DIR=dist/adapters/qwenpaw ruby "$adapter_root/scripts/build-qwenpaw-plugin.rb" plugins/teamharness/plugin.yaml
 OUT_DIR=dist/adapters/qwenpaw ruby plugins/workerflow/adapters/qwenpaw/scripts/build-qwenpaw-plugin.rb plugins/workerflow/plugin.yaml

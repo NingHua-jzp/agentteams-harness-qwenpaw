@@ -10,8 +10,8 @@ require "yaml"
 
 manifest_path = Pathname.new(ARGV[0] || "plugins/teamharness/plugin.yaml").expand_path
 plugin_root = manifest_path.dirname
-repo_root = plugin_root.ascend.find { |path| (path / ".git").directory? } || plugin_root
-adapter_root = ENV["QWENPAW_ADAPTER_ROOT"] ? Pathname.new(ENV.fetch("QWENPAW_ADAPTER_ROOT")).expand_path : plugin_root / "adapters/qwenpaw"
+repo_root = plugin_root.ascend.find { |path| (path / ".git").exist? } || plugin_root
+adapter_root = Pathname.new(__dir__).parent
 out_dir = Pathname.new(ENV["OUT_DIR"] || (repo_root / "dist/adapters/qwenpaw").to_s).expand_path
 
 abort("missing manifest: #{manifest_path}") unless manifest_path.file?

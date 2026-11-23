@@ -74,17 +74,11 @@ from qwenpaw.app.channels.base import BaseChannel
 from qwenpaw.app.channels.utils import file_url_to_local_path
 from qwenpaw.constant import WORKING_DIR
 
-# P9/PR1 M3: mention parsing, the per-room history buffer and session-id
-# derivation live in the runtime-neutral core package at the bundle root
-# (``plugins/agentteams-matrix/core``).  The core root is three levels up
-# in the source tree and one level up in the installed layout (install.sh
-# copies ``core/`` next to the adapter package); try both and fail closed
-# when neither provides the package.
-_here = Path(__file__).parent.resolve() / Path(__file__).name
-_core_source = os.getenv("AGENTTEAMS_CORE_SOURCE")
-_core_roots = (_here.parents[1], _here.parents[3], _here.parents[2])
-if _core_source:
-    _core_roots += (Path(_core_source) / "plugins/agentteams-matrix",)
+# The managed image installs the shared Matrix core beside the adapter.
+# Source tests point to the corresponding Core checkout.
+_here = Path(__file__).resolve()
+_core_source = Path(os.environ.get("AGENTTEAMS_CORE_SOURCE", _here.parents[4]))
+_core_roots = (_here.parents[1], _core_source / "plugins/agentteams-matrix")
 for _base in _core_roots:
     if (_base / "core" / "__init__.py").is_file():
         if str(_base) not in sys.path:
@@ -93,7 +87,7 @@ for _base in _core_roots:
 else:
     raise ImportError(
         "agentteams-matrix: the core package is missing; the bundle's core/ "
-        "directory must be installed next to the plugin (install.sh copies it)"
+        "directory must be installed next to the plugin"
     )
 
 from core.e2ee import (  # noqa: E402

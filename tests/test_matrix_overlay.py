@@ -10,8 +10,8 @@ from types import SimpleNamespace
 import pytest
 
 
-ROOT = (Path(__file__).resolve().parents[2] if (Path(__file__).resolve().parents[2] / "plugins").is_dir() else Path(__file__).resolve().parents[1] / ".deps" / "AgentTeams")
-OVERLAY = ROOT / "plugins" / "agentteams-matrix-channel" / "agentteams_matrix" / "channel.py"
+HARNESS_ROOT = Path(__file__).resolve().parents[1]
+OVERLAY = HARNESS_ROOT / "adapters/matrix" / "agentteams_matrix" / "channel.py"
 
 
 @pytest.fixture(autouse=True)

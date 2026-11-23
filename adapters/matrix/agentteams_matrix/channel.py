@@ -433,6 +433,10 @@ class _LegacySyncTokenStore:
         )
 
 
+def _is_assistant_turn(meta):
+    return isinstance(meta, dict) and (meta.get("teamharness_coordination") or {}).get("kind") == "assistant_digest"
+
+
 def _with_trace_reply(method):
     @wraps(method)
     async def wrapped(self, *args, **kwargs):
@@ -4691,6 +4695,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         send_meta: Dict[str, Any],
     ) -> bool:
         """Consume streaming tool progress without sending Matrix noise."""
+        if _is_assistant_turn(send_meta):
+            return True
         del request
         if getattr(event, "type", None) != ContentType.DATA:
             return False
@@ -4712,6 +4718,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         send_meta: Dict[str, Any],
     ) -> None:
         """Route completed messages behind a processing root."""
+        if _is_assistant_turn(send_meta):
+            return
         del request
         message_type = getattr(event, "type", None)
         if send_meta.get("message_execution"):
@@ -4783,6 +4791,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         accumulated_text: str = "",
     ) -> None:
         del request, accumulated_text
+        if _is_assistant_turn(send_meta):
+            return
         if send_meta.get("message_execution") and stream_type == "message":
             return
         if stream_type == "reasoning":
@@ -4818,6 +4828,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         accumulated_text: str = "",
     ) -> None:
         del request
+        if _is_assistant_turn(send_meta):
+            return
         text = (accumulated_text or "").strip()
         if stream_type == "reasoning":
             if self.show_thinking and not send_meta.get("teamharness_matrix_coordination"):
@@ -5111,6 +5123,9 @@ class AgentTeamsMatrixChannel(BaseChannel):
         send_meta: Dict[str, Any],
     ) -> None:
         """Edit thread root with final reply, or send directly if no thread."""
+        if _is_assistant_turn(send_meta):
+            await self._send_typing(to_handle, False)
+            return
         if send_meta.get("message_execution") or send_meta.get("task_execution"):
             text = send_meta.pop(_MATRIX_STREAMING_FINAL_TEXT_KEY, "")
             pending = send_meta.pop(_MATRIX_PENDING_FINAL_MESSAGE_KEY, None)
@@ -5228,6 +5243,9 @@ class AgentTeamsMatrixChannel(BaseChannel):
     ) -> None:
         """Edit thread root on error; suppress cancellation noise; mask raw errors before room send."""
         request_meta = getattr(request, "channel_meta", None)
+        if _is_assistant_turn(request_meta):
+            await self._send_typing(to_handle, False)
+            return
         if (request_meta or {}).get("message_execution"):
             await self._send_typing(to_handle, False)
             return
@@ -5484,6 +5502,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         text: str,
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
+        if _is_assistant_turn(meta) and not (meta or {}).get("org.agentteams.approval"):
+            return
         if not self._client:
             logger.error("MatrixChannel: send called but client not ready component=matrix")
             return

@@ -41,6 +41,19 @@ async def main():
         assert admitted[0]["content_parts"][0].text == f.text
         assert admitted[0]["meta"]["teamharness_coordination_session"] == f.control["session_id"]
         assert not admitted[0]["meta"].get("task_id")
+        # All background assistant output is submitted through Controller.
+        # A skipped cycle must not leak native progress, reasoning or final text.
+        meta = admitted[0]["meta"]
+        channel._client = Mock()
+        channel._client.room_send = AsyncMock()
+        channel._ensure_thread_root = AsyncMock(side_effect=AssertionError("assistant created visible progress"))
+        await channel.send(f.room, "No new information", meta)
+        assert await channel.on_event_content(None, f.room, None, meta) is True
+        await channel.on_event_message_completed(None, f.room, None, meta)
+        await channel.on_streaming_start(None, f.room, None, meta, "message")
+        await channel.on_streaming_end(None, f.room, None, meta, "message", "NO_REPLY")
+        await channel._on_process_completed(None, f.room, meta)
+        channel._client.room_send.assert_not_awaited()
         f.context["owner"] = "replaced"
         await channel._on_room_event(room, event)
         assert len(admitted) == 1

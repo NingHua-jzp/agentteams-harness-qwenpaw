@@ -154,6 +154,7 @@ def _load_overlay_module():
                 "RoomMessageFile",
                 "RoomMessageImage",
                 "RoomMessageText",
+                "RoomMessageNotice",
                 "RoomMessageVideo",
                 "SyncResponse",
                 "ToDeviceEvent",

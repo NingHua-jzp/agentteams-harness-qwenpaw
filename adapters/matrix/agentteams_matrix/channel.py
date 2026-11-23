@@ -2952,7 +2952,10 @@ class AgentTeamsMatrixChannel(BaseChannel):
 
     async def _on_coordination_notice(self, room: MatrixRoom, event: RoomMessageNotice):
         content = (getattr(event, "source", {}) or {}).get("content", {})
-        if "org.agentteams.coordination" in content:
+        control = content.get("org.agentteams.coordination")
+        meta = control.get("channel_meta", {}) if isinstance(control, dict) else {}
+        assignment = meta.get("teamharness_coordination", {}) if isinstance(meta, dict) else {}
+        if isinstance(assignment, dict) and assignment.get("kind") == "assistant_digest":
             await self._on_room_event(room, event)
 
     async def _on_room_event(

@@ -5,6 +5,7 @@ VERSION ?= v0.1.0
 PLATFORMS ?= linux/amd64,linux/arm64
 AT_SOURCE ?= .deps/AgentTeams
 BUILD_ARGS = --build-context shared=$(AT_SOURCE)/shared/lib --build-context agentteams=$(AT_SOURCE)
+export AGENTTEAMS_CORE_SOURCE := $(abspath $(AT_SOURCE))
 export PYTHONPATH := $(CURDIR)/src:$(abspath $(AT_SOURCE))/plugins/agentteams-matrix-channel:$(PYTHONPATH)
 
 .PHONY: prepare build push test smoke

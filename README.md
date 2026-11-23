@@ -9,6 +9,11 @@ cards and native approval/rejection/expiry receipts. Updating the channel build
 input is required to include the shared ApprovalService bridge; a Dashboard-only
 update cannot resume or reject a native QwenPaw approval waiter.
 
+The managed QwenPaw Task adapter and Matrix channel live in `adapters/`.
+The image combines these runtime adapters with the shared Task and Matrix assets
+from the AgentTeams commit in `versions.env`. Native adapter tests exercise
+that same shared Core checkout.
+
 ## Scope
 
 `src/qwenpaw_worker/` owns configuration, workspace sync, lifecycle and runtime

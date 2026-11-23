@@ -1,7 +1,7 @@
 """Real MCPTool + hook + agt binary, with an isolated HTTP contract fixture.
 
-Run in the native image with the candidate Linux agt mounted on PATH. This is
-SDK/CLI integration evidence, not a live model or Harness business certification.
+Run with the pinned Core agt on PATH. Uses the SDK and CLI against a local
+HTTP fixture.
 """
 
 from adapter_fixture import HARNESS, core_source
@@ -10,6 +10,7 @@ import asyncio
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,7 +24,8 @@ from urllib.parse import urlsplit
 
 def native_available():
     try:
-        return bool(importlib.util.find_spec("agentscope.agent") and importlib.util.find_spec("qwenpaw.runtime"))
+        return bool(shutil.which("agt") and importlib.util.find_spec("agentscope.agent")
+                    and importlib.util.find_spec("qwenpaw.runtime"))
     except (ValueError, ModuleNotFoundError):
         return False
 

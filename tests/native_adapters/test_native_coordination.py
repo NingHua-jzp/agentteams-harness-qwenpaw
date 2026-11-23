@@ -30,7 +30,7 @@ class NativeCoordinationTest(unittest.TestCase):
         import json
         import os
         import tempfile
-        path = Path("/opt/agentteams/qwenpaw-builtin/plugins/teamharness/plugin.py")
+        path = HARNESS / "adapters/teamharness/plugin.py"
         spec = importlib.util.spec_from_file_location("prepared_context_plugin", path)
         plugin = importlib.util.module_from_spec(spec); spec.loader.exec_module(plugin)
         class Parameters(BaseModel): pass
@@ -76,7 +76,7 @@ class NativeCoordinationTest(unittest.TestCase):
     def test_exact_output_move_permission_is_task_scoped(self):
         from agentscope.permission import PermissionBehavior, PermissionDecision
         import tempfile
-        path = Path("/opt/agentteams/qwenpaw-builtin/plugins/teamharness/plugin.py")
+        path = HARNESS / "adapters/teamharness/plugin.py"
         spec = importlib.util.spec_from_file_location("native_output_scope_plugin", path)
         plugin = importlib.util.module_from_spec(spec); spec.loader.exec_module(plugin)
         with tempfile.TemporaryDirectory() as directory:
@@ -119,7 +119,7 @@ class NativeCoordinationTest(unittest.TestCase):
         from agentscope.permission import PermissionBehavior, PermissionDecision
         from pydantic import BaseModel
         import json
-        path = Path("/opt/agentteams/qwenpaw-builtin/plugins/teamharness/plugin.py")
+        path = HARNESS / "adapters/teamharness/plugin.py"
         spec = importlib.util.spec_from_file_location("native_finish_plugin", path)
         plugin = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(plugin)
@@ -157,7 +157,7 @@ class NativeCoordinationTest(unittest.TestCase):
     def test_native_approval_future_exposes_its_resolution(self):
         from qwenpaw.app.approvals import get_approval_service, ApprovalRequestSummary
         from qwenpaw.security.tool_guard.approval import ApprovalDecision
-        path = Path("/opt/agentteams/qwenpaw-builtin/plugins/teamharness/plugin.py")
+        path = HARNESS / "adapters/teamharness/plugin.py"
         spec = importlib.util.spec_from_file_location("native_approval_plugin", path)
         plugin = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(plugin)
@@ -184,11 +184,7 @@ class NativeCoordinationTest(unittest.TestCase):
         import qwenpaw.runtime.runtime as runtime_module
         from qwenpaw.runtime.hooks import HookResult
         from qwenpaw.runtime.phases import Phase
-        path = Path("/opt/agentteams/qwenpaw-builtin/plugins/teamharness/plugin.py")
-        if len(Path(__file__).resolve().parents) > 5:
-            source = HARNESS / "adapters/teamharness/plugin.py"
-            if source.exists():
-                path = source
+        path = HARNESS / "adapters/teamharness/plugin.py"
         spec = importlib.util.spec_from_file_location("native_coordination_plugin", path)
         plugin = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(plugin)

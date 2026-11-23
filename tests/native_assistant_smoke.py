@@ -14,6 +14,8 @@ sys.path[:0] = [str(core / "tests/lib"), str(core / "shared/lib"),
 from assistant_fixture import AssistantFixture
 from agentteams_matrix.channel import AgentTeamsMatrixChannel
 from qwenpaw.app.channels.base import BaseChannel
+from nio import RoomMessageNotice
+from qwenpaw_matrix_sync import ManagedNioSync
 
 
 async def main():
@@ -35,9 +37,13 @@ async def main():
         channel._enqueue_matrix_input = lambda payload, _turn: admitted.append(payload)
         channel._handle_direct_control = AsyncMock(return_value=False)
         room = SimpleNamespace(room_id=f.room, users={}, user_name=lambda _: "Leader")
-        event = SimpleNamespace(event_id="$assistant", sender=f.own, body="Visible Teams wake",
-            source={"content": f.content()})
-        await channel._on_room_event(room, event)
+        event = RoomMessageNotice.from_dict({"event_id": "$assistant", "sender": f.own,
+            "origin_server_ts": 1, "type": "m.room.message", "content": f.content()})
+        managed = object.__new__(ManagedNioSync)
+        managed.channel = channel
+        handler = managed.handler(event)
+        assert handler is not None
+        await handler(room, event)
         assert len(admitted) == 1
         assert admitted[0]["content_parts"][0].text == f.text
         assert admitted[0]["meta"]["teamharness_coordination_session"] == f.control["session_id"]
@@ -62,8 +68,14 @@ async def main():
             output = [item async for item in channel._stream_matrix_payload({"meta": {**meta, "is_dm":True, "room_id":f.room, "event_id":"$assistant"}})]
         assert output == ["native event"]
         channel._publish_direct_execution.assert_not_awaited()
+        ordinary = RoomMessageNotice.from_dict({"event_id": "$ordinary", "sender": f.own,
+            "origin_server_ts": 2, "type": "m.room.message",
+            "content": {"msgtype": "m.notice", "body": "Unrelated notice"}})
+        await channel._on_coordination_notice(room, ordinary)
+        assert managed.handler(ordinary) is None
+        assert len(admitted) == 1
         f.context["owner"] = "replaced"
-        await channel._on_room_event(room, event)
+        await channel._on_coordination_notice(room, event)
         assert len(admitted) == 1
         print("QwenPaw native Teams reminder admission: PASS")
 

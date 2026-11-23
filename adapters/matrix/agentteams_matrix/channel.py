@@ -44,6 +44,7 @@ from nio import (
     RoomMessageAudio,
     RoomMessageFile,
     RoomMessageImage,
+    RoomMessageNotice,
     RoomMessageText,
     RoomMessageVideo,
     ToDeviceEvent,
@@ -1300,6 +1301,10 @@ class AgentTeamsMatrixChannel(BaseChannel):
         self._client.add_event_callback(
             self._on_room_event,
             (RoomMessageText,),
+        )
+        self._client.add_event_callback(
+            self._on_coordination_notice,
+            (RoomMessageNotice,),
         )
         self._client.add_event_callback(
             self._on_room_media_event,
@@ -2944,6 +2949,11 @@ class AgentTeamsMatrixChannel(BaseChannel):
     # mention gating; history buffer when no mention; enqueue AgentRequest
     # (§9).
     # ------------------------------------------------------------------
+
+    async def _on_coordination_notice(self, room: MatrixRoom, event: RoomMessageNotice):
+        content = (getattr(event, "source", {}) or {}).get("content", {})
+        if "org.agentteams.coordination" in content:
+            await self._on_room_event(room, event)
 
     async def _on_room_event(
         self,

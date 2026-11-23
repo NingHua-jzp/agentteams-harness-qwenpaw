@@ -42,7 +42,7 @@ def _is_task_tool(name: str) -> bool:
 ASSET_DIR = PLUGIN_DIR / "teamharness"
 if not (ASSET_DIR / "plugin.yaml").exists():
     core_source = os.getenv("AGENTTEAMS_CORE_SOURCE")
-    ASSET_DIR = Path(core_source) / "plugins/teamharness" if core_source else PLUGIN_DIR.parent.parent
+    ASSET_DIR = (Path(core_source) if core_source else PLUGIN_DIR.parents[2]) / "plugins/teamharness"
 
 
 def _team_prompt(_agent: Any) -> str:

@@ -17,6 +17,7 @@ from agentteams_matrix.channel import (
     _THREAD_META_ROOT_KEY,
     AgentTeamsMatrixChannel,
     HistoryEntry,
+    RoomHistory,
 )
 
 
@@ -24,10 +25,7 @@ def _make_channel(user_id: str = "@worker-a:hs.local") -> AgentTeamsMatrixChanne
     ch = AgentTeamsMatrixChannel.__new__(AgentTeamsMatrixChannel)
     ch._user_id = user_id
     ch.history_limit = 50
-    ch._room_histories = {}
-    ch._room_history_gen = {}
-    ch._room_history_records = {}
-    ch._room_event_log = {}
+    ch._room_history = RoomHistory(limit=ch.history_limit)
     ch._send_gate_state = {}
     ch.enqueued = []
     ch._enqueue = ch.enqueued.append
@@ -311,7 +309,7 @@ def test_retrigger_window_head_dropped_under_cap_still_recovers_tail():
     event is still recovered and the snapshot advances only to the
     context actually supplied."""
     ch = _make_channel()
-    ch.history_limit = 2
+    ch._room_history = RoomHistory(limit=2)
     room = "!room:hs.local"
     for body in ("e1", "e2", "e3", "e4"):
         ch._record_history(room, _entry(body=body))

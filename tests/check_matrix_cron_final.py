@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, patch
 from qwenpaw.app.crons import executor
 from qwenpaw.schemas import MessageType, RunStatus, TextContent
 
-ROOT = (Path(__file__).resolve().parents[2] if (Path(__file__).resolve().parents[2] / "plugins").is_dir() else Path(__file__).resolve().parents[1] / ".deps" / "AgentTeams")
+HARNESS_ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "matrix_cron_final_channel",
-    ROOT / "plugins/agentteams-matrix-channel/agentteams_matrix/channel.py",
+    HARNESS_ROOT / "adapters/matrix/agentteams_matrix/channel.py",
 )
 CHANNEL = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = CHANNEL

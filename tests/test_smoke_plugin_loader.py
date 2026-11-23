@@ -23,9 +23,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-REPO = (Path(__file__).resolve().parents[2] if (Path(__file__).resolve().parents[2] / "plugins").is_dir() else Path(__file__).resolve().parents[1] / ".deps" / "AgentTeams")
+HARNESS_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "smoke_plugin_loader.py"
-PLUGIN_DIR = REPO / "plugins" / "agentteams-matrix-channel"
+PLUGIN_DIR = HARNESS_ROOT / "adapters/matrix"
 
 
 def _run_smoke(*args: str) -> int:

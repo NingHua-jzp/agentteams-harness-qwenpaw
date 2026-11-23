@@ -74,17 +74,11 @@ from qwenpaw.app.channels.base import BaseChannel
 from qwenpaw.app.channels.utils import file_url_to_local_path
 from qwenpaw.constant import WORKING_DIR
 
-# P9/PR1 M3: mention parsing, the per-room history buffer and session-id
-# derivation live in the runtime-neutral core package at the bundle root
-# (``plugins/agentteams-matrix/core``).  The core root is three levels up
-# in the source tree and one level up in the installed layout (install.sh
-# copies ``core/`` next to the adapter package); try both and fail closed
-# when neither provides the package.
-_here = Path(__file__).parent.resolve() / Path(__file__).name
-_core_source = os.getenv("AGENTTEAMS_CORE_SOURCE")
-_core_roots = (_here.parents[1], _here.parents[3], _here.parents[2])
-if _core_source:
-    _core_roots += (Path(_core_source) / "plugins/agentteams-matrix",)
+# The managed image installs the shared Matrix core beside the adapter.
+# Source tests point to the corresponding Core checkout.
+_here = Path(__file__).resolve()
+_core_source = Path(os.environ.get("AGENTTEAMS_CORE_SOURCE", _here.parents[4]))
+_core_roots = (_here.parents[1], _core_source / "plugins/agentteams-matrix")
 for _base in _core_roots:
     if (_base / "core" / "__init__.py").is_file():
         if str(_base) not in sys.path:
@@ -93,7 +87,7 @@ for _base in _core_roots:
 else:
     raise ImportError(
         "agentteams-matrix: the core package is missing; the bundle's core/ "
-        "directory must be installed next to the plugin (install.sh copies it)"
+        "directory must be installed next to the plugin"
     )
 
 from core.e2ee import (  # noqa: E402
@@ -3114,9 +3108,9 @@ class AgentTeamsMatrixChannel(BaseChannel):
                 )
                 return
 
-        # Mark as read + start typing immediately so the sender sees feedback
-        if prepare is None and self._session_receipts is None and self._task_execution is None:
-            await self._send_read_receipt(room_id, event.event_id)
+        needs_read_receipt = (
+            prepare is None and self._session_receipts is None and self._task_execution is None
+        )
         if prepare is None:
             await self._send_typing(room_id, True)
 
@@ -3142,6 +3136,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
             )
             if prepare is None:
                 await self._send_typing(room_id, False)
+            if needs_read_receipt:
+                await self._send_read_receipt(room_id, event.event_id)
             return
 
         control_text = self._control_command_text(stripped)
@@ -3254,6 +3250,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
             self._enqueue_matrix_input(payload, turn)
             if not is_dm and not is_thread_event:
                 self._clear_history(room_id)
+        if needs_read_receipt:
+            await self._send_read_receipt(room_id, event.event_id)
 
     # ------------------------------------------------------------------
     # Incoming message handling — media (image / file / audio / video)
@@ -4334,6 +4332,9 @@ class AgentTeamsMatrixChannel(BaseChannel):
         if meta_dict.get("teamharness_matrix_coordination"):
             content["org.agentteams.progress_only"] = True
             content["m.mentions"] = {"user_ids": []}
+        approval = meta_dict.get("org.agentteams.approval")
+        if isinstance(approval, dict):
+            content["org.agentteams.approval"] = approval
         return content
 
     def _write_long_message_file(self, text: str) -> Path:
@@ -4623,6 +4624,54 @@ class AgentTeamsMatrixChannel(BaseChannel):
         renderer = self._renderer.__class__(style)
         parts = renderer.message_to_parts(event)
         return [p for p in parts if getattr(p, "type", None) != ContentType.TEXT]
+
+    async def send_approval_notification(
+        self, *, session_id: str, user_id: str, request_id: str,
+        tool_name: str, severity: str, result_summary: str,
+        channel_meta: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Publish your exact approval request and its runtime resolution."""
+        from qwenpaw.app.approvals import get_approval_service
+
+        pending = await get_approval_service().get_request(request_id)
+        if pending is None:
+            return
+        to_handle = self.to_handle_from_target(user_id=user_id, session_id=session_id)
+        approval = {
+            "version": 1, "runtime": "qwenpaw", "request_id": request_id,
+            "status": "pending", "tool_name": tool_name, "severity": severity,
+            "risk_details": pending.result_summary,
+            "parameters": json.dumps(
+                pending.extra.get("tool_call", {}).get("input", {}), ensure_ascii=False, indent=2,
+            ),
+            "expires_at": int((pending.created_at + pending.timeout_seconds) * 1000),
+        }
+        meta = {**(channel_meta or {}), "org.agentteams.approval": approval}
+        # Send directly: approvals must not be buffered as a turn's final reply.
+        await self.send(to_handle, f"{result_summary}\n\nRequest ID: `{request_id}`", meta)
+
+        async def publish_resolution():
+            try:
+                decision = pending.future.result()
+                status = {"approved": "approved", "denied": "rejected", "timeout": "expired"}.get(
+                    getattr(decision, "value", decision), "cancelled",
+                )
+            except asyncio.CancelledError:
+                status = "cancelled"
+            await self.send(to_handle, f"Approval {request_id}: {status}.", {
+                **(channel_meta or {}),
+                "org.agentteams.approval": {
+                    "version": 1, "runtime": "qwenpaw", "request_id": request_id, "status": status,
+                },
+            })
+
+        def resolved(_future):
+            task = asyncio.create_task(publish_resolution())
+            task.add_done_callback(lambda done: logger.warning(
+                "Matrix approval receipt failed: %s", done.exception(),
+            ) if not done.cancelled() and done.exception() else None)
+
+        pending.future.add_done_callback(resolved)
 
     async def on_event_content(
         self,

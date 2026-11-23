@@ -32,8 +32,7 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-REPO_ROOT = (Path(__file__).resolve().parents[2] if (Path(__file__).resolve().parents[2] / "plugins").is_dir() else Path(__file__).resolve().parents[1] / ".deps" / "AgentTeams")
-DEFAULT_PLUGIN_DIR = REPO_ROOT / "plugins" / "agentteams-matrix-channel"
+DEFAULT_PLUGIN_DIR = Path(__file__).resolve().parents[1] / "adapters/matrix"
 
 
 class SmokeError(RuntimeError):
@@ -44,7 +43,7 @@ def prepare_plugins_root(plugin_dir: Path, working_dir: Path) -> Path:
     """Copy *plugin_dir* into ``working_dir/plugins`` and return that root."""
     plugins_root = working_dir / "plugins"
     plugins_root.mkdir(parents=True, exist_ok=True)
-    target = plugins_root / plugin_dir.name
+    target = plugins_root / json.loads((plugin_dir / "plugin.json").read_text())["id"]
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(

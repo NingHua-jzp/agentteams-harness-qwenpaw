@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 
 
-ROOT = (Path(__file__).resolve().parents[2] if (Path(__file__).resolve().parents[2] / "plugins").is_dir() else Path(__file__).resolve().parents[1] / ".deps" / "AgentTeams")
-PLUGIN = ROOT / "plugins" / "agentteams-matrix-channel"
+HARNESS_ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = HARNESS_ROOT / "adapters/matrix"
 
 
 def test_matrix_plugin_uses_distinct_custom_channel_key():

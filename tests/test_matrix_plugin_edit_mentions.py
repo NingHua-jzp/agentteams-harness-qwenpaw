@@ -1,6 +1,6 @@
 """Direct tests for _edit_matrix_event m.mentions propagation.
 
-The QwenPaw 2.0 runtime loads ``plugins/agentteams-matrix-channel`` (key
+The QwenPaw 2.0 runtime loads ``adapters/matrix`` (key
 ``agentteams_matrix``) as its Matrix channel. Its edit path
 ``_edit_matrix_event`` must attach ``m.mentions`` to BOTH the outer
 replacement event and ``m.new_content`` per MSC3952 so notifications

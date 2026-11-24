@@ -46,9 +46,12 @@ def test_denial_is_a_notice_that_does_not_trigger_another_agent(blacklisted, is_
         "origin_server_ts": 1, "content": content,
     })
     assert not isinstance(event, RoomMessageText)
+    channel._on_room_event = AsyncMock()
     channel._register_plain_room_callbacks()
     for call in channel._client.add_event_callback.call_args_list:
-        assert not isinstance(event, call.args[1])
+        if isinstance(event, call.args[1]):
+            asyncio.run(call.args[0](SimpleNamespace(room_id='!room:localhost'), event))
+    channel._on_room_event.assert_not_awaited()
 
 
 def test_allowed_message_keeps_original_metadata():

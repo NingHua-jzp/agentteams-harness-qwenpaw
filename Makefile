@@ -22,3 +22,6 @@ smoke:
 	docker run --rm --entrypoint /opt/venv/qwenpaw/bin/python $(IMAGE):$(VERSION) -c 'import qwenpaw_worker; from qwenpaw.plugins.loader import PluginLoader'
 	docker run --rm --network none -v "$(CURDIR)/tests/native_managed_model_smoke.py:/tmp/native_managed_model_smoke.py:ro" --entrypoint /opt/venv/qwenpaw/bin/python $(IMAGE):$(VERSION) /tmp/native_managed_model_smoke.py
 	docker run --rm --entrypoint sh $(IMAGE):$(VERSION) -ec 'for helper in install-worker-skill.sh safe-extract-worker-skill.py push-worker-skills.sh; do test -r "/opt/agentteams/agent/skills/worker-management/scripts/$$helper"; done'
+
+assistant-protocol-smoke:
+	docker run --rm --network none -e AT_SOURCE=/at -v "$(abspath $(AT_SOURCE)):/at:ro" -v "$(CURDIR):/harness:ro" --entrypoint /opt/venv/qwenpaw/bin/python $(IMAGE):$(VERSION) /harness/tests/native_assistant_smoke.py

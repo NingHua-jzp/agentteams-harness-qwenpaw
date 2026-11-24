@@ -22,6 +22,13 @@ FROM ${HIGRESS_REGISTRY}/higress/mc:20260216 AS mc
 FROM ${AGENTTEAMS_CONTROLLER_IMAGE} AS agentteams-controller
 
 # ============ Final Image ============
+# Build the public CLI from the same pinned Core as the protocol assets.
+FROM higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/golang:1.26-alpine AS public-cli
+WORKDIR /build
+COPY --from=agentteams /agentteams-controller/ ./
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -o /out/agt ./cmd/agt && /out/agt assistant --help > /dev/null
+
 FROM ${HIGRESS_REGISTRY}/higress/python:3.11-slim
 
 ARG APT_MIRROR=
@@ -174,7 +181,7 @@ RUN /opt/venv/qwenpaw/bin/python /tmp/install-builtin-qwenpaw-plugins.py \
         /opt/agentteams/plugins/workerflow-qwenpaw.zip \
     && rm -f /tmp/install-builtin-qwenpaw-plugins.py
 
-COPY --from=agentteams-controller /usr/local/bin/agt /usr/local/bin/agt
+COPY --from=public-cli /out/agt /usr/local/bin/agt
 COPY --from=agentteams manager/scripts/init/qwenpaw_manager_skill_sync.py /opt/agentteams/scripts/qwenpaw_manager_skill_sync.py
 COPY --chmod=755 scripts/qwenpaw-worker-entrypoint.sh /opt/agentteams/scripts/qwenpaw-worker-entrypoint.sh
 COPY --chmod=755 scripts/qwenpaw-teamharness-plugin-reload.sh /opt/agentteams/scripts/qwenpaw-teamharness-plugin-reload.sh

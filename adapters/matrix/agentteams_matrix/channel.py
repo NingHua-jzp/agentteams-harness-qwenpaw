@@ -44,6 +44,7 @@ from nio import (
     RoomMessageAudio,
     RoomMessageFile,
     RoomMessageImage,
+    RoomMessageNotice,
     RoomMessageText,
     RoomMessageVideo,
     ToDeviceEvent,
@@ -433,6 +434,10 @@ class _LegacySyncTokenStore:
         )
 
 
+def _is_assistant_turn(meta):
+    return isinstance(meta, dict) and (meta.get("teamharness_coordination") or {}).get("kind") == "assistant_digest"
+
+
 def _with_trace_reply(method):
     @wraps(method)
     async def wrapped(self, *args, **kwargs):
@@ -731,7 +736,7 @@ class AgentTeamsMatrixChannel(BaseChannel):
                 yield item
             return
         room_id, run_id = meta.get("room_id"), meta.get("event_id")
-        if not meta.get("is_dm") or not room_id or not run_id:
+        if _is_assistant_turn(meta) or not meta.get("is_dm") or not room_id or not run_id:
             async for item in super()._stream_with_tracker(payload):
                 yield item
             return
@@ -1296,6 +1301,10 @@ class AgentTeamsMatrixChannel(BaseChannel):
         self._client.add_event_callback(
             self._on_room_event,
             (RoomMessageText,),
+        )
+        self._client.add_event_callback(
+            self._on_coordination_notice,
+            (RoomMessageNotice,),
         )
         self._client.add_event_callback(
             self._on_room_media_event,
@@ -2941,6 +2950,14 @@ class AgentTeamsMatrixChannel(BaseChannel):
     # (§9).
     # ------------------------------------------------------------------
 
+    async def _on_coordination_notice(self, room: MatrixRoom, event: RoomMessageNotice):
+        content = (getattr(event, "source", {}) or {}).get("content", {})
+        control = content.get("org.agentteams.coordination")
+        meta = control.get("channel_meta", {}) if isinstance(control, dict) else {}
+        assignment = meta.get("teamharness_coordination", {}) if isinstance(meta, dict) else {}
+        if isinstance(assignment, dict) and assignment.get("kind") == "assistant_digest":
+            await self._on_room_event(room, event)
+
     async def _on_room_event(
         self,
         room: MatrixRoom,
@@ -2951,13 +2968,21 @@ class AgentTeamsMatrixChannel(BaseChannel):
         if (getattr(event, "source", {}) or {}).get("content", {}).get("org.agentteams.progress_only") is True:
             return
         content = (getattr(event, "source", {}) or {}).get("content", {})
-        if self._task_execution and "org.agentteams.coordination" in content:
+        control = content.get("org.agentteams.coordination")
+        control_meta = control.get("channel_meta", {}) if isinstance(control, dict) else {}
+        assignment = control_meta.get("teamharness_coordination", {}) if isinstance(control_meta, dict) else {}
+        assistant_control = isinstance(assignment, dict) and assignment.get("kind") == "assistant_digest"
+        verified_control = None
+        if (self._task_execution or assistant_control) and "org.agentteams.coordination" in content:
             from task_coordination import notification, IgnoredNotification
             try:
                 canonical = await asyncio.to_thread(notification, content, room.room_id, event.sender, self._user_id, event_id=event.event_id)
             except IgnoredNotification:
                 return
-            if canonical["meta"]["teamharness_coordination"]["kind"] == "task_assigned":
+            if assistant_control:
+                verified_control = {"session_id": canonical["session_id"], "channel_meta": canonical["meta"],
+                    "input": [{"content": [{"text": canonical["text"]}]}]}
+            if self._task_execution and canonical["meta"]["teamharness_coordination"]["kind"] == "task_assigned":
                 if prepare:
                     return await prepare(room.room_id, event, "task_notification",
                         task_id=canonical["meta"]["teamharness_coordination"]["task_id"])
@@ -2966,7 +2991,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
                         task_id=canonical["meta"]["teamharness_coordination"]["task_id"])
                 await self._task_execution.recover(canonical["meta"]["teamharness_coordination"]["task_id"], event, source_room=room.room_id, source_text=canonical["text"])
                 return
-        control = (getattr(event, "source", {}) or {}).get("content", {}).get("org.agentteams.coordination")
+        if assistant_control:
+            control = verified_control
         control_meta = control.get("channel_meta", {}) if isinstance(control, dict) else {}
         if control is not None:
             if not isinstance(control_meta, dict):
@@ -2981,6 +3007,7 @@ class AgentTeamsMatrixChannel(BaseChannel):
             if not isinstance(control_text, str):
                 return
             expected_session = {
+                "assistant_digest": "coordination-assistant:" + str(assignment.get("id", "")),
                 "handoff": "coordination-handoff:" + str(assignment.get("id", "")),
                 "task_assigned": "coordination-task:" + str(assignment.get("task_id", "")) + ":" + str(assignment.get("delivery_id", "")),
                 "task_submitted": "coordination-review:" + str(assignment.get("task_id", "")) + ":" + str(assignment.get("submission_id", "")),
@@ -3000,7 +3027,7 @@ class AgentTeamsMatrixChannel(BaseChannel):
         teamharness_self_trigger = None
         if sender_id == self._user_id:
             teamharness_self_trigger = self._teamharness_self_trigger(room_id, event)
-            if control is not None and assignment.get("kind") in {"task_assigned", "task_submitted", "project_ready", "main_task_ready"}:
+            if control is not None and assignment.get("kind") in {"assistant_digest", "task_assigned", "task_submitted", "project_ready", "main_task_ready"}:
                 # The runtime hook verifies self-addressed execution/closure
                 # against the Controller receipt and current task before inference.
                 teamharness_self_trigger = {"type": "project_ready", "kind": "coordination"}
@@ -4681,6 +4708,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         send_meta: Dict[str, Any],
     ) -> bool:
         """Consume streaming tool progress without sending Matrix noise."""
+        if _is_assistant_turn(send_meta):
+            return True
         del request
         if getattr(event, "type", None) != ContentType.DATA:
             return False
@@ -4702,6 +4731,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         send_meta: Dict[str, Any],
     ) -> None:
         """Route completed messages behind a processing root."""
+        if _is_assistant_turn(send_meta):
+            return
         del request
         message_type = getattr(event, "type", None)
         if send_meta.get("message_execution"):
@@ -4773,6 +4804,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         accumulated_text: str = "",
     ) -> None:
         del request, accumulated_text
+        if _is_assistant_turn(send_meta):
+            return
         if send_meta.get("message_execution") and stream_type == "message":
             return
         if stream_type == "reasoning":
@@ -4808,6 +4841,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         accumulated_text: str = "",
     ) -> None:
         del request
+        if _is_assistant_turn(send_meta):
+            return
         text = (accumulated_text or "").strip()
         if stream_type == "reasoning":
             if self.show_thinking and not send_meta.get("teamharness_matrix_coordination"):
@@ -5101,6 +5136,9 @@ class AgentTeamsMatrixChannel(BaseChannel):
         send_meta: Dict[str, Any],
     ) -> None:
         """Edit thread root with final reply, or send directly if no thread."""
+        if _is_assistant_turn(send_meta):
+            await self._send_typing(to_handle, False)
+            return
         if send_meta.get("message_execution") or send_meta.get("task_execution"):
             text = send_meta.pop(_MATRIX_STREAMING_FINAL_TEXT_KEY, "")
             pending = send_meta.pop(_MATRIX_PENDING_FINAL_MESSAGE_KEY, None)
@@ -5218,6 +5256,9 @@ class AgentTeamsMatrixChannel(BaseChannel):
     ) -> None:
         """Edit thread root on error; suppress cancellation noise; mask raw errors before room send."""
         request_meta = getattr(request, "channel_meta", None)
+        if _is_assistant_turn(request_meta):
+            await self._send_typing(to_handle, False)
+            return
         if (request_meta or {}).get("message_execution"):
             await self._send_typing(to_handle, False)
             return
@@ -5474,6 +5515,8 @@ class AgentTeamsMatrixChannel(BaseChannel):
         text: str,
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
+        if _is_assistant_turn(meta) and not (meta or {}).get("org.agentteams.approval"):
+            return
         if not self._client:
             logger.error("MatrixChannel: send called but client not ready component=matrix")
             return
